@@ -1,9 +1,9 @@
-package io.hhplus.tdd.core;
+package io.hhplus.tdd.common;
 
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
-import java.util.WeakHashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.Supplier;
@@ -11,9 +11,17 @@ import java.util.function.Supplier;
 @Component
 public final class VirtualTransaction {
 
-    private final Map<String, Lock> locks = new WeakHashMap<>();
+    private final Map<String, Lock> locks = new ConcurrentHashMap<>();
+//    private final Map<String, Lock> locks = new WeakHashMap<>();
+//    private final ReentrantLock globalLock = new ReentrantLock(true);
 
-    private Lock getLock(String scope) {
+    public Lock getLock(String scope) {
+//        globalLock.lock();
+//        try {
+//            return locks.computeIfAbsent(scope, k -> new ReentrantLock(true));
+//        } finally {
+//            globalLock.unlock();
+//        }
         return locks.computeIfAbsent(scope, k -> new ReentrantLock(true));
     }
 

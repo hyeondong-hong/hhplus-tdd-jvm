@@ -319,3 +319,117 @@ public List<PointHistory> getPointHistoryAll(Long userId) {
 `PointHistoryTable` 인스턴스 내의 `table`을 보면 `ArrayList` 이기 때문에 유저와 관계없이 하나의 콜렉션에 접근하는
 형태가 될 것이고, 이는 **동시 접근 시 레이스컨디션 문제**로 이어질 것이다. 따라서 `PointHistoryTable`에 접근할 때에는
 유저 구분을 없애고 모든 유저가 순차적으로 히스토리를 쌓는 형태가 된다.
+
+여기서 scope 문자열을 생성하는 코드가 지저분하다는 생각이 들어 아래와 같이 변경했다.
+
+```java
+public enum TableType {
+    USER_POINT, POINT_HISTORY;
+
+    public String makeScope(Long id) {
+        StringBuilder scope = new StringBuilder();
+        if (id != null) {
+            scope.append(id).append("_");
+        }
+        return scope.append(this.name()).toString();
+    }
+
+    public String makeScope() {
+        return makeScope(null);
+    }
+}
+```
+
+```java
+// PointServiceImpl
+
+// ... 생략 ...
+
+@Override
+public UserPoint getUserPoint(Long userId) {
+    return virtualTransaction.perform(TableType.USER_POINT.makeScope(userId), () -> {
+        // ...
+        return userPointTable.selectById(userId);
+    });
+}
+
+// ... 생략 ...
+
+@Override
+public List<PointHistory> getPointHistoryAll(Long userId) {
+    return virtualTransaction.perform(TableType.POINT_HISTORY.makeScope(), () -> {
+        // ...
+        return pointHistoryTable.selectAllByUserId(userId);
+    });
+}
+```
+
+이렇게 함으로써 scope 생성 책임을 `TableType` enum 에게 전가할 수 있고, `VirtualTransaction` 컴포넌트를 테스트할 때
+스코프 생성에 대한 중복 로직을 작성할 필요도 없어진다.
+
+추가로 테스트를 하다가 발견한 문제인데, `VirtualTransaction`에서 락을 취득하는 부분에서도 레이스 컨디션 문제가 발생했다.
+
+```java
+@Component
+public final class VirtualTransaction {
+
+    private final Map<String, Lock> locks = new WeakHashMap<>();
+
+    private Lock getLock(String scope) {
+        return locks.computeIfAbsent(scope, k -> new ReentrantLock(true));  // 이 부분
+    }
+
+    public <T> T perform(String scope, Supplier<T> func) {
+        Lock lock = getLock(scope);
+        lock.lock();
+        try {
+            return func.get();
+        } finally {
+            lock.unlock();
+        }
+    }
+}
+```
+
+`locks` 인스턴스에 여러 스레드가 동시에 접근해서 동일한 키로 두 개의 락이 발생하고 있어서 아래와 같이 처리해 봤다.
+
+```java
+@Component
+public final class VirtualTransaction {
+
+    private final Map<String, Lock> locks = new WeakHashMap<>();
+    private final ReentrantLock globalLock = new ReentrantLock(true);
+  
+    private Lock getLock(String scope) {
+        globalLock.lock();
+        try {
+            return locks.computeIfAbsent(scope, k -> new ReentrantLock(true));
+        } finally {
+            globalLock.unlock();
+        }
+    }
+  
+    // ... 생략 ...
+}
+```
+
+이러면 정상 처럼 보인다. 하지만 이번주 멘토링을 통해 얻은 키워드 중 `ConcurrentHashMap`이라는 클래스가 있었다.
+이 클래스에 대해 알아보니 동기처리를 보장하는데, 무려 그 범위가 키 단위라고 한다. 그렇다면 `ConcurrentHashMap`으로
+처리하는 편이 성능적으로 훨씬 이점이 많다.
+
+```java
+@Component
+public final class VirtualTransaction {
+
+    private final Map<String, Lock> locks = new ConcurrentHashMap<>();
+  
+    private Lock getLock(String scope) {
+        return locks.computeIfAbsent(scope, k -> new ReentrantLock(true));
+    }
+  
+    // ... 생략 ...
+}
+```
+
+이러면 `WeakHashMap`의 이점은 사라지지만, 키를 정리하는 로직 까지 직접 구현하기엔 시간이 모자라니 이 정도로 정리하는
+편이 좋아 보인다.

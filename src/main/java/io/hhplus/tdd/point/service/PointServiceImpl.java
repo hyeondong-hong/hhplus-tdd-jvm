@@ -1,8 +1,13 @@
-package io.hhplus.tdd.point;
+package io.hhplus.tdd.point.service;
 
-import io.hhplus.tdd.core.VirtualTransaction;
+import io.hhplus.tdd.common.VirtualTransaction;
 import io.hhplus.tdd.database.PointHistoryTable;
 import io.hhplus.tdd.database.UserPointTable;
+import io.hhplus.tdd.point.model.enumeration.TableType;
+import io.hhplus.tdd.point.model.enumeration.TransactionType;
+import io.hhplus.tdd.point.model.record.PointHistory;
+import io.hhplus.tdd.point.model.record.UserPoint;
+import io.hhplus.tdd.point.validator.PointValidator;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -27,38 +32,34 @@ public class PointServiceImpl implements PointService {
         this.pointValidator = pointValidator;
     }
 
-    private String makeScope(Long userId, TableType tableType) {
-        return userId + "_" + tableType;
-    }
-
     @Override
-    public UserPoint chargePoint(Long userId, long amount) {
-        UserPoint result = virtualTransaction.perform(makeScope(userId, TableType.USER_POINT), () -> {
+    public UserPoint chargePoint(final Long userId, final long amount) {
+        return virtualTransaction.perform(TableType.USER_POINT.makeScope(userId), () -> {
             UserPoint userPoint = userPointTable.selectById(userId);
             pointValidator.validateCharge(userPoint, amount);
             long newAmount = userPoint.point() + amount;
 
-            return modifyPoint(userId, newAmount, amount, TransactionType.CHARGE);
+            UserPoint result = modifyPoint(userId, newAmount, TransactionType.CHARGE);
+            insertHistory(userId, amount, TransactionType.CHARGE, result.updateMillis());
+            return result;
         });
-        insertHistory(userId, amount, TransactionType.CHARGE, result.updateMillis());
-        return result;
     }
 
     @Override
-    public UserPoint usePoint(Long userId, long amount) {
-        UserPoint result = virtualTransaction.perform(makeScope(userId, TableType.USER_POINT), () -> {
+    public UserPoint usePoint(final Long userId, final long amount) {
+        return virtualTransaction.perform(TableType.USER_POINT.makeScope(userId), () -> {
             UserPoint userPoint = userPointTable.selectById(userId);
             pointValidator.validateUse(userPoint, amount);
             long newAmount = userPoint.point() - amount;
 
-            return modifyPoint(userId, newAmount, amount, TransactionType.USE);
+            UserPoint result = modifyPoint(userId, newAmount, TransactionType.USE);
+            insertHistory(userId, amount, TransactionType.USE, result.updateMillis());
+            return result;
         });
-        insertHistory(userId, amount, TransactionType.USE, result.updateMillis());
-        return result;
     }
 
     @Override
-    public UserPoint modifyPoint(Long userId, long newAmount, long amount, TransactionType transactionType) {
+    public UserPoint modifyPoint(final Long userId, final long newAmount, final TransactionType transactionType) {
         assert transactionType != null;
 
         return userPointTable.insertOrUpdate(userId, newAmount);
@@ -99,20 +100,20 @@ public class PointServiceImpl implements PointService {
 //    }
 
     @Override
-    public UserPoint getUserPoint(Long userId) {
-        return virtualTransaction.perform(makeScope(userId, TableType.USER_POINT),
+    public UserPoint getUserPoint(final Long userId) {
+        return virtualTransaction.perform(TableType.USER_POINT.makeScope(userId),
                 () -> userPointTable.selectById(userId));
     }
 
     @Override
-    public PointHistory insertHistory(Long userId, long amount, TransactionType transactionType, long millis) {
-        return virtualTransaction.perform(TableType.POINT_HISTORY.toString(),
+    public PointHistory insertHistory(final Long userId, final long amount, final TransactionType transactionType, final long millis) {
+        return virtualTransaction.perform(TableType.POINT_HISTORY.makeScope(),
                 () -> pointHistoryTable.insert(userId, amount, transactionType, millis));
     }
 
     @Override
-    public List<PointHistory> getPointHistoryAll(Long userId) {
-        return virtualTransaction.perform(TableType.POINT_HISTORY.toString(),
+    public List<PointHistory> getPointHistoryAll(final Long userId) {
+        return virtualTransaction.perform(TableType.POINT_HISTORY.makeScope(),
                 () -> pointHistoryTable.selectAllByUserId(userId));
     }
 

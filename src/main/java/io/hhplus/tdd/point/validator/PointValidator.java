@@ -1,8 +1,9 @@
-package io.hhplus.tdd.point;
+package io.hhplus.tdd.point.validator;
 
+import io.hhplus.tdd.point.model.record.UserPoint;
 import org.springframework.stereotype.Component;
 
-import static io.hhplus.tdd.point.PointConstants.CHARGE_LIMIT;
+import static io.hhplus.tdd.point.constants.PointConstants.CHARGE_LIMIT;
 
 @Component
 public class PointValidator {
