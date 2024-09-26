@@ -1,4 +1,4 @@
-package io.hhplus.tdd.point.integration.service;
+package io.hhplus.tdd.integration.point.service;
 
 import io.hhplus.tdd.point.model.record.UserPoint;
 import io.hhplus.tdd.point.service.PointService;

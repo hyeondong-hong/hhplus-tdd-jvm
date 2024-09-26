@@ -1,4 +1,4 @@
-package io.hhplus.tdd.point.unit.service;
+package io.hhplus.tdd.unit.point.service;
 
 import io.hhplus.tdd.common.VirtualTransaction;
 import io.hhplus.tdd.database.PointHistoryTable;

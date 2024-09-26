@@ -1,4 +1,4 @@
-package io.hhplus.tdd.common.unit;
+package io.hhplus.tdd.unit.common;
 
 import io.hhplus.tdd.common.VirtualTransaction;
 import org.junit.jupiter.api.BeforeEach;

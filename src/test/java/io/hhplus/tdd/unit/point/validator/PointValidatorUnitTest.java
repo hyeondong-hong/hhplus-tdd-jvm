@@ -1,4 +1,4 @@
-package io.hhplus.tdd.point.unit.validator;
+package io.hhplus.tdd.unit.point.validator;
 
 import io.hhplus.tdd.point.model.record.UserPoint;
 import io.hhplus.tdd.point.validator.PointValidator;
