@@ -39,7 +39,7 @@ public class PointServiceImpl implements PointService {
             pointValidator.validateCharge(userPoint, amount);
             long newAmount = userPoint.point() + amount;
 
-            UserPoint result = modifyPoint(userId, newAmount, TransactionType.CHARGE);
+            UserPoint result = userPointTable.insertOrUpdate(userId, newAmount);
             insertHistory(userId, amount, TransactionType.CHARGE, result.updateMillis());
             return result;
         });
@@ -52,63 +52,21 @@ public class PointServiceImpl implements PointService {
             pointValidator.validateUse(userPoint, amount);
             long newAmount = userPoint.point() - amount;
 
-            UserPoint result = modifyPoint(userId, newAmount, TransactionType.USE);
+            UserPoint result = userPointTable.insertOrUpdate(userId, newAmount);
             insertHistory(userId, amount, TransactionType.USE, result.updateMillis());
             return result;
         });
     }
 
-    @Override
-    public UserPoint modifyPoint(final Long userId, final long newAmount, final TransactionType transactionType) {
-        assert transactionType != null;
-
-        return userPointTable.insertOrUpdate(userId, newAmount);
+    private void insertHistory(final Long userId, final long amount, final TransactionType transactionType, final long millis) {
+        virtualTransaction.perform(TableType.POINT_HISTORY.makeScope(),
+                () -> pointHistoryTable.insert(userId, amount, transactionType, millis));
     }
-//
-//    public UserPoint modifyPointAsynchronous(
-//            Long userId, long newAmount, long amount, TransactionType transactionType) {
-//
-//        assert transactionType != null;
-//
-//        CompletableFuture<UserPoint> userPointTask = CompletableFuture.supplyAsync(
-//                () -> userPointTable.insertOrUpdate(userId, newAmount));
-//        CompletableFuture<PointHistory> pointHistoryTask = CompletableFuture.supplyAsync(
-//                () -> virtualTransaction.perform(makeScope(userId, TableType.POINT_HISTORY),
-//                        () -> pointHistoryTable.insert(userId, amount, transactionType, System.currentTimeMillis())));
-//
-//        try {
-//            CompletableFuture.allOf(userPointTask, pointHistoryTask).join();
-//
-//            try {
-//                pointHistoryTask.get();
-//            } catch (ExecutionException e) {
-//                throw new IllegalStateException("포인트 이력 기록 실패", e);
-//            }
-//            try {
-//                return userPointTask.get();
-//            } catch (ExecutionException e) {
-//                String messageType = switch (transactionType) {
-//                    case CHARGE -> "충전";
-//                    case USE -> "사용";
-//                };
-//                throw new IllegalStateException("포인트 " + messageType + " 실패", e);
-//            }
-//        } catch (InterruptedException e) {
-//            Thread.currentThread().interrupt();
-//            throw new RuntimeException(e);
-//        }
-//    }
 
     @Override
     public UserPoint getUserPoint(final Long userId) {
         return virtualTransaction.perform(TableType.USER_POINT.makeScope(userId),
                 () -> userPointTable.selectById(userId));
-    }
-
-    @Override
-    public PointHistory insertHistory(final Long userId, final long amount, final TransactionType transactionType, final long millis) {
-        return virtualTransaction.perform(TableType.POINT_HISTORY.makeScope(),
-                () -> pointHistoryTable.insert(userId, amount, transactionType, millis));
     }
 
     @Override
