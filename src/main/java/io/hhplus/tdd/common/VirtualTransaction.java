@@ -12,16 +12,8 @@ import java.util.function.Supplier;
 public final class VirtualTransaction {
 
     private final Map<String, Lock> locks = new ConcurrentHashMap<>();
-//    private final Map<String, Lock> locks = new WeakHashMap<>();
-//    private final ReentrantLock globalLock = new ReentrantLock(true);
 
     public Lock getLock(String scope) {
-//        globalLock.lock();
-//        try {
-//            return locks.computeIfAbsent(scope, k -> new ReentrantLock(true));
-//        } finally {
-//            globalLock.unlock();
-//        }
         return locks.computeIfAbsent(scope, k -> new ReentrantLock(true));
     }
 
